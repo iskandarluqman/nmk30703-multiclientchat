@@ -16,7 +16,6 @@ import java.util.Date;
 /**
  * Secure Chat Client with GUI
  * User-friendly graphical interface for the secure chat application
- * Author: Your Name
  * Course: NMK30703 Programming for Networking
  */
 public class SecureChatClientGUI extends JFrame {
