@@ -16,7 +16,7 @@ import java.util.Base64;
  */
 public class SecureChatServer {
     private static final int PORT = 30703;
-    private static final String SECRET_KEY = "UniMAPMantap2025  "; // 16 characters for AES
+    private static final String SECRET_KEY = "UniMAPMantap2025"; // 16 characters for AES
     private ServerSocket serverSocket;
     private boolean isRunning = false;
 
