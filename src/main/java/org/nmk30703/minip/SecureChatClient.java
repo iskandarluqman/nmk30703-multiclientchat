@@ -15,7 +15,7 @@ import java.util.Base64;
 public class SecureChatClient {
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 30703;
-    private static final String SECRET_KEY = "UniMAPMantap"; // Must match server
+    private static final String SECRET_KEY = "UniMAPMantap2025"; // Must match server
 
     private Socket socket;
     private BufferedReader input;

@@ -20,7 +20,7 @@ import java.util.Date;
 public class SecureChatClientGUI extends JFrame {
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 30703;
-    private static final String SECRET_KEY = "UniMAPMantap";
+    private static final String SECRET_KEY = "UniMAPMantap2025";
 
     // GUI Components
     private JTextArea chatArea;
