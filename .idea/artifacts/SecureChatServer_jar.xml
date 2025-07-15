@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="SecureChatServer:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/SecureChatServer_jar</output-path>
+    <root id="archive" name="multiclientchat.jar">
+      <element id="module-output" name="multiclientchat" />
+    </root>
+  </artifact>
+</component>
