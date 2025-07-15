@@ -10,7 +10,6 @@ import java.util.Base64;
 /**
  * Secure Chat Client
  * Connects to the secure chat server with encryption
- * Author: Your Name
  * Course: NMK30703 Programming for Networking
  */
 public class SecureChatClient {

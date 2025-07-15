@@ -13,7 +13,6 @@ import java.util.Base64;
 /**
  * Secure Multi-Client Chat Server
  * Handles multiple client connections with encryption and authentication
- * Author: Your Name
  * Course: NMK30703 Programming for Networking
  */
 public class SecureChatServer {
