@@ -13,11 +13,10 @@ import java.util.Base64;
 /**
  * Secure Multi-Client Chat Server
  * Handles multiple client connections with encryption and authentication
- * Course: NMK30703 Programming for Networking
  */
 public class SecureChatServer {
-    private static final int PORT = 12345;
-    private static final String SECRET_KEY = "MySecretKey12345"; // 16 characters for AES
+    private static final int PORT = 30703;
+    private static final String SECRET_KEY = "UniMAPMantap"; // 16 characters for AES
     private ServerSocket serverSocket;
     private boolean isRunning = false;
 

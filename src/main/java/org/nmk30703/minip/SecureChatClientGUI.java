@@ -16,12 +16,11 @@ import java.util.Date;
 /**
  * Secure Chat Client with GUI
  * User-friendly graphical interface for the secure chat application
- * Course: NMK30703 Programming for Networking
  */
 public class SecureChatClientGUI extends JFrame {
     private static final String SERVER_HOST = "localhost";
-    private static final int SERVER_PORT = 12345;
-    private static final String SECRET_KEY = "MySecretKey12345";
+    private static final int SERVER_PORT = 30703;
+    private static final String SECRET_KEY = "UniMAPMantap";
 
     // GUI Components
     private JTextArea chatArea;
