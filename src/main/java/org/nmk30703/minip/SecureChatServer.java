@@ -70,7 +70,7 @@ public class SecureChatServer {
         availableIPs.clear();
 
         try {
-            System.out.println("🔍 Discovering network IPs using InetAddress...");
+            System.out.println("Discovering network IPs using InetAddress...");
 
             // Get localhost info
             InetAddress localhost = InetAddress.getLocalHost();
@@ -103,7 +103,7 @@ public class SecureChatServer {
                 availableIPs.add("127.0.0.1");
             }
 
-            System.out.println("✅ Found " + availableIPs.size() + " available network IPs");
+            System.out.println("Found " + availableIPs.size() + " available network IPs");
 
         } catch (Exception e) {
             System.err.println("Error discovering network IPs: " + e.getMessage());
@@ -117,14 +117,14 @@ public class SecureChatServer {
      * Display available network IPs
      */
     public void displayAvailableIPs() {
-        System.out.println("\n🌐 Available Network IPs:");
-        System.out.println("=" .repeat(30));
+        System.out.println("\nAvailable Network IPs:");
+        System.out.println("==============================");
 
         for (int i = 0; i < availableIPs.size(); i++) {
             String ip = availableIPs.get(i);
             System.out.println((i + 1) + ". " + ip);
         }
-        System.out.println("=" .repeat(30));
+        System.out.println("==============================");
     }
 
     /**
@@ -151,14 +151,14 @@ public class SecureChatServer {
                 int choice = Integer.parseInt(input);
                 if (choice >= 1 && choice <= availableIPs.size()) {
                     String selectedIP = availableIPs.get(choice - 1);
-                    System.out.println("✅ Selected: " + selectedIP);
+                    System.out.println("Selected: " + selectedIP);
                     return selectedIP;
                 }
             } catch (NumberFormatException e) {
                 // Invalid input
             }
 
-            System.out.println("❌ Invalid selection. Please try again.");
+            System.out.println("Invalid selection. Please try again.");
         }
     }
 
@@ -170,23 +170,23 @@ public class SecureChatServer {
             if (bindAddress != null && !bindAddress.isEmpty()) {
                 InetAddress bindAddr = InetAddress.getByName(bindAddress);
                 serverSocket = new ServerSocket(port, 50, bindAddr);
-                System.out.println("🚀 Server started on " + bindAddress + ":" + port);
+                System.out.println("Server started on " + bindAddress + ":" + port);
             } else {
                 serverSocket = new ServerSocket(port);
-                System.out.println("🚀 Server started on all interfaces:" + port);
+                System.out.println("Server started on all interfaces:" + port);
             }
 
             isRunning = true;
 
-            System.out.println("🔌 Port: " + port);
-            System.out.println("📋 Users: " + userDatabase.keySet());
-            System.out.println("🔐 Encryption: AES-128");
+            System.out.println("Port: " + port);
+            System.out.println("Users: " + userDatabase.keySet());
+            System.out.println("Encryption: AES-128");
             System.out.println("Waiting for clients...\n");
 
             while (isRunning) {
                 try {
                     Socket clientSocket = serverSocket.accept();
-                    System.out.println("📥 Connection from: " + clientSocket.getInetAddress().getHostAddress());
+                    System.out.println("Connection from: " + clientSocket.getInetAddress().getHostAddress());
 
                     ClientHandler clientHandler = new ClientHandler(clientSocket);
                     clientThreadPool.submit(clientHandler);
@@ -198,7 +198,7 @@ public class SecureChatServer {
                 }
             }
         } catch (IOException e) {
-            System.err.println("❌ Error starting server: " + e.getMessage());
+            System.err.println("Error starting server: " + e.getMessage());
         }
     }
 
@@ -212,7 +212,7 @@ public class SecureChatServer {
                 serverSocket.close();
             }
             clientThreadPool.shutdown();
-            System.out.println("🛑 Server stopped.");
+            System.out.println("Server stopped.");
         } catch (IOException e) {
             System.err.println("Error stopping server: " + e.getMessage());
         }
@@ -246,7 +246,7 @@ public class SecureChatServer {
         } else {
             ClientHandler senderClient = clients.get(senderUsername);
             if (senderClient != null) {
-                senderClient.sendMessage("❌ User '" + targetUsername + "' not found.");
+                senderClient.sendMessage("User '" + targetUsername + "' not found.");
             }
         }
     }
@@ -307,14 +307,14 @@ public class SecureChatServer {
                 input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 output = new PrintWriter(clientSocket.getOutputStream(), true);
 
-                sendMessage("🔐 Welcome to Secure Chat Server!");
+                sendMessage("Secure Chat Server!");
                 sendMessage("Please authenticate to continue.");
 
                 if (authenticate()) {
-                    sendMessage("✅ Authentication successful! Welcome " + username + "!");
-                    sendMessage("📝 Commands: /list, /private <user> <message>, /quit");
+                    sendMessage("Authentication successful! Welcome " + username + "!");
+                    sendMessage("Commands: /list, /private <user> <message>, /quit");
 
-                    broadcastMessage("📢 " + username + " joined the chat!", username);
+                    broadcastMessage("* " + username + " joined the chat!", username);
 
                     String encryptedMessage;
                     while ((encryptedMessage = input.readLine()) != null) {
@@ -323,11 +323,11 @@ public class SecureChatServer {
                         if (message.equals("/quit")) {
                             break;
                         } else if (message.equals("/list")) {
-                            sendMessage("👥 Online users: " + clients.keySet());
+                            sendMessage("Online users: " + clients.keySet());
                         } else if (message.startsWith("/private ")) {
                             handlePrivateMessage(message);
                         } else {
-                            String chatMessage = "💬 " + username + ": " + message;
+                            String chatMessage = username + ": " + message;
                             System.out.println(chatMessage);
                             broadcastMessage(chatMessage, username);
                         }
@@ -355,7 +355,7 @@ public class SecureChatServer {
                         userDatabase.get(inputUsername).equals(hashedInput)) {
 
                     if (clients.containsKey(inputUsername)) {
-                        sendMessage("❌ User already logged in!");
+                        sendMessage("User already logged in!");
                         return false;
                     }
 
@@ -364,11 +364,11 @@ public class SecureChatServer {
                     clients.put(username, this);
                     authenticatedUsers.put(username, clientSocket.getInetAddress().getHostAddress());
 
-                    System.out.println("✅ User '" + username + "' authenticated from " +
+                    System.out.println("User '" + username + "' authenticated from " +
                             clientSocket.getInetAddress().getHostAddress());
                     return true;
                 } else {
-                    sendMessage("❌ Invalid credentials!");
+                    sendMessage("Invalid credentials!");
                     return false;
                 }
             } catch (IOException e) {
@@ -384,7 +384,7 @@ public class SecureChatServer {
                 String message = parts[2];
                 sendPrivateMessage(message, targetUser, username);
             } else {
-                sendMessage("❌ Usage: /private <username> <message>");
+                sendMessage("Usage: /private <username> <message>");
             }
         }
 
@@ -400,8 +400,8 @@ public class SecureChatServer {
                 if (username != null && isAuthenticated) {
                     clients.remove(username);
                     authenticatedUsers.remove(username);
-                    broadcastMessage("📢 " + username + " left the chat.", username);
-                    System.out.println("👋 User '" + username + "' disconnected");
+                    broadcastMessage("* " + username + " left the chat.", username);
+                    System.out.println("User '" + username + "' disconnected");
                 }
 
                 if (input != null) input.close();
@@ -486,18 +486,18 @@ public class SecureChatServer {
             server.bindAddress = bindAddress;
         }
 
-        System.out.println("🔐 Secure Chat Server");
-        System.out.println("====================");
+        System.out.println("Secure Chat Server");
+        System.out.println("==================");
         if (bindAddress != null) {
-            System.out.println("🌐 Binding to: " + bindAddress + ":" + port);
+            System.out.println("Binding to: " + bindAddress + ":" + port);
         } else {
-            System.out.println("🌐 Binding to: All interfaces:" + port);
+            System.out.println("Binding to: All interfaces:" + port);
         }
-        System.out.println("====================\n");
+        System.out.println("==================\n");
 
         // Graceful shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n🛑 Shutting down server...");
+            System.out.println("\nShutting down server...");
             server.stopServer();
         }));
 

@@ -149,24 +149,36 @@ public class SecureChatClient {
     }
 
     /**
-     * Get server connection details interactively
+     * Get server connection details with default options
      */
     private void getServerDetails() {
-        System.out.print("Enter server IP address (current: " + serverHost + "): ");
+        System.out.print("Enter server IP address (default: " + serverHost + "): ");
         String input = scanner.nextLine().trim();
         if (!input.isEmpty()) {
             serverHost = input;
         }
 
-        System.out.print("Enter server port (current: " + serverPort + "): ");
+        System.out.print("Enter server port (default: " + serverPort + "): ");
         input = scanner.nextLine().trim();
         if (!input.isEmpty()) {
             try {
                 serverPort = Integer.parseInt(input);
             } catch (NumberFormatException e) {
-                System.err.println("Invalid port number, using current: " + serverPort);
+                System.err.println("Invalid port number, using default: " + serverPort);
             }
         }
+    }
+
+    /**
+     * Ask for server IP with default option
+     */
+    private void askForServerIP() {
+        System.out.print("Enter server IP address (default: " + serverHost + "): ");
+        String input = scanner.nextLine().trim();
+        if (!input.isEmpty()) {
+            serverHost = input;
+        }
+        System.out.println("Using server: " + serverHost + ":" + serverPort);
     }
 
     /**
@@ -174,14 +186,14 @@ public class SecureChatClient {
      */
     private boolean testConnection() {
         try {
-            System.out.println("🔍 Testing connection to " + serverHost + ":" + serverPort + "...");
+            System.out.println("Testing connection to " + serverHost + ":" + serverPort + "...");
             Socket testSocket = new Socket();
             testSocket.connect(new InetSocketAddress(serverHost, serverPort), 5000); // 5 second timeout
             testSocket.close();
-            System.out.println("✅ Connection test successful!");
+            System.out.println("Connection test successful!");
             return true;
         } catch (IOException e) {
-            System.err.println("❌ Connection test failed: " + e.getMessage());
+            System.err.println("Connection test failed: " + e.getMessage());
             return false;
         }
     }
@@ -191,14 +203,14 @@ public class SecureChatClient {
      */
     public void connectToServer() {
         try {
-            System.out.println("🔗 Connecting to server...");
+            System.out.println("Connecting to server...");
 
             socket = new Socket(serverHost, serverPort);
             input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             output = new PrintWriter(socket.getOutputStream(), true);
             isConnected = true;
 
-            System.out.println("✅ Connected successfully!");
+            System.out.println("Connected successfully!");
 
             // Start thread to listen for server messages
             Thread serverListener = new Thread(this::listenForServerMessages);
@@ -212,8 +224,8 @@ public class SecureChatClient {
             sendMessages();
 
         } catch (IOException e) {
-            System.err.println("❌ Connection failed: " + e.getMessage());
-            System.err.println("💡 Check server is running on " + serverHost + ":" + serverPort);
+            System.err.println("Connection failed: " + e.getMessage());
+            System.err.println("Check server is running on " + serverHost + ":" + serverPort);
         }
     }
 
@@ -267,8 +279,8 @@ public class SecureChatClient {
      * Send messages to server
      */
     private void sendMessages() {
-        System.out.println("\n📝 Type '/help' for commands or '/quit' to exit.");
-        System.out.println("💬 You can start chatting now!");
+        System.out.println("\nType '/help' for commands or '/quit' to exit.");
+        System.out.println("You can start chatting now!");
 
         String message;
         while (isConnected && (message = scanner.nextLine()) != null) {
@@ -291,7 +303,7 @@ public class SecureChatClient {
      * Show help commands
      */
     private void showHelp() {
-        System.out.println("\n📋 Available Commands:");
+        System.out.println("\nAvailable Commands:");
         System.out.println("  /list                    - Show online users");
         System.out.println("  /private <user> <msg>    - Send private message");
         System.out.println("  /info                    - Show connection info");
@@ -305,14 +317,14 @@ public class SecureChatClient {
      */
     private void showConnectionInfo() {
         if (isConnected && socket != null) {
-            System.out.println("\n🌐 Connection Information:");
+            System.out.println("\nConnection Information:");
             System.out.println("  Server: " + serverHost + ":" + serverPort);
             System.out.println("  Your IP: " + detectedNetworkIP);
             System.out.println("  Username: " + username);
-            System.out.println("  Status: Connected ✅\n");
+            System.out.println("  Status: Connected\n");
         } else {
-            System.out.println("\n❌ Not connected to server");
-            System.out.println("🏠 Your IP: " + detectedNetworkIP + "\n");
+            System.out.println("\nNot connected to server");
+            System.out.println("Your IP: " + detectedNetworkIP + "\n");
         }
     }
 
@@ -335,7 +347,7 @@ public class SecureChatClient {
             if (input != null) input.close();
             if (output != null) output.close();
             if (socket != null) socket.close();
-            System.out.println("👋 Disconnected from server. Goodbye!");
+            System.out.println("Disconnected from server. Goodbye!");
         } catch (IOException e) {
             System.err.println("Error disconnecting: " + e.getMessage());
         }
@@ -347,16 +359,18 @@ public class SecureChatClient {
     private static void showUsage() {
         System.out.println("Usage: java SecureChatClient [options]");
         System.out.println("Options:");
-        System.out.println("  -h <address>   Server IP address (default: auto-detected)");
+        System.out.println("  -h <address>   Server IP address (skips IP prompt)");
         System.out.println("  -p <port>      Server port (default: 30703)");
-        System.out.println("  -i             Interactive mode (ask for server details)");
+        System.out.println("  -i             Interactive mode (full server details)");
         System.out.println("  --help         Show this help message");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  java SecureChatClient                    # Use auto-detected IP");
-        System.out.println("  java SecureChatClient -h 192.168.1.100   # Connect to specific IP");
-        System.out.println("  java SecureChatClient -i                 # Interactive mode");
+        System.out.println("  java SecureChatClient                    # Prompts for server IP");
+        System.out.println("  java SecureChatClient -h 192.168.1.100   # Skip IP prompt");
+        System.out.println("  java SecureChatClient -i                 # Full interactive mode");
         System.out.println("  java SecureChatClient -p 8080            # Custom port");
+        System.out.println();
+        System.out.println("Default behavior: Asks for server IP with auto-detected default");
     }
 
     /**
@@ -366,6 +380,7 @@ public class SecureChatClient {
         String serverHost = DEFAULT_SERVER_HOST; // Will be auto-detected
         int serverPort = DEFAULT_SERVER_PORT;
         boolean interactive = false;
+        boolean skipIPPrompt = false;
 
         // Parse command line arguments
         for (int i = 0; i < args.length; i++) {
@@ -373,6 +388,7 @@ public class SecureChatClient {
                 case "-h":
                     if (i + 1 < args.length) {
                         serverHost = args[++i];
+                        skipIPPrompt = true; // Skip IP prompt if provided via command line
                     } else {
                         System.err.println("Server address required after -h");
                         return;
@@ -404,25 +420,30 @@ public class SecureChatClient {
             }
         }
 
-        System.out.println("🔐 Secure Chat Client - Auto Network Detection");
-        System.out.println("===============================================");
+        System.out.println("Secure Chat Client");
+        System.out.println("==================");
         System.out.println("Available test accounts:");
         System.out.println("  Username: admin,  Password: admin123");
         System.out.println("  Username: user1,  Password: password1");
         System.out.println("  Username: user2,  Password: password2");
         System.out.println("  Username: guest,  Password: guest123");
-        System.out.println("===============================================\n");
+        System.out.println("==================\n");
 
         SecureChatClient client = new SecureChatClient(serverHost, serverPort);
 
-        // Interactive mode to get server details
+        // Ask for server IP unless provided via command line
+        if (!skipIPPrompt) {
+            client.askForServerIP();
+        }
+
+        // Interactive mode for additional server details
         if (interactive) {
             client.getServerDetails();
         }
 
         // Test connection first
         if (!client.testConnection()) {
-            System.err.println("❌ Cannot connect to server. Please check:");
+            System.err.println("Cannot connect to server. Please check:");
             System.err.println("   1. Server is running on " + client.serverHost + ":" + client.serverPort);
             System.err.println("   2. Network connectivity");
             System.err.println("   3. Firewall settings");
@@ -432,7 +453,7 @@ public class SecureChatClient {
 
         // Handle graceful shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n🛑 Client shutting down...");
+            System.out.println("\nClient shutting down...");
             client.disconnect();
         }));
 

@@ -6,17 +6,17 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.*;
-import java.util.Enumeration;
 import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.util.Base64;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Enumeration;
 
 /**
  * Secure Chat Client with GUI
  * User-friendly graphical interface for the secure chat application
- * Now supports connecting to servers on different IP addresses
+ * Now supports connecting to servers on different IP addresses with auto-detection
  */
 public class SecureChatClientGUI extends JFrame {
     private static final String DEFAULT_SERVER_HOST = "localhost";
@@ -37,6 +37,7 @@ public class SecureChatClientGUI extends JFrame {
     private JPanel loginPanel;
     private JPanel chatPanel;
     private JButton testConnectionButton;
+    private JButton detectIPButton;
 
     // Networking components
     private Socket socket;
@@ -48,86 +49,78 @@ public class SecureChatClientGUI extends JFrame {
     private String username;
     private String serverHost = DEFAULT_SERVER_HOST;
     private int serverPort = DEFAULT_SERVER_PORT;
-    private String detectedNetworkIP;
+    private String detectedIP = DEFAULT_SERVER_HOST;
 
     public SecureChatClientGUI() {
-        detectNetworkIP(); // Detect network IP first
         setupEncryption();
+        detectNetworkIP();
         initializeGUI();
     }
 
     /**
-     * Detect the network IP address to use as default server
-     * Using InetAddress class as per NMK30703 lab module
+     * Detect network IP using InetAddress (following lecture material)
      */
     private void detectNetworkIP() {
         try {
             System.out.println("Detecting network IP using InetAddress class...");
 
-            // Method 1: Get localhost address (as per lecture)
+            // Primary method: Use InetAddress.getLocalHost() as taught in lecture
             InetAddress localhost = InetAddress.getLocalHost();
             System.out.println("Localhost: " + localhost);
             System.out.println("Localhost IP: " + localhost.getHostAddress());
             System.out.println("Localhost hostname: " + localhost.getHostName());
 
-            // Check if localhost gives us a proper network IP
             String localhostIP = localhost.getHostAddress();
-            if (!localhostIP.equals("127.0.0.1") && !localhostIP.equals("localhost")) {
-                detectedNetworkIP = localhostIP;
-                serverHost = localhostIP;
-                System.out.println("✅ Using localhost IP: " + localhostIP);
-                return;
+
+            // If localhost gives us a useful IP, use it
+            if (localhostIP != null && !localhostIP.equals("127.0.0.1")) {
+                detectedIP = localhostIP;
+                System.out.println("Using localhost IP: " + detectedIP);
+            } else {
+                // Fallback: scan network interfaces for private IPs
+                detectedIP = scanNetworkInterfaces();
             }
 
-            // Method 2: Scan network interfaces for better IP detection
-            System.out.println("Localhost returned loopback, scanning network interfaces...");
+            System.out.println("Final detected IP: " + detectedIP);
+
+        } catch (Exception e) {
+            System.err.println("Error detecting network IP: " + e.getMessage());
+            detectedIP = DEFAULT_SERVER_HOST;
+        }
+    }
+
+    /**
+     * Scan network interfaces for private IP addresses
+     */
+    private String scanNetworkInterfaces() {
+        try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+
             while (interfaces.hasMoreElements()) {
                 NetworkInterface ni = interfaces.nextElement();
-                System.out.println("Interface: " + ni.getDisplayName() + " - Up: " + ni.isUp() + " - Loopback: " + ni.isLoopback());
 
-                if (ni.isUp() && !ni.isLoopback() && !ni.isVirtual()) {
+                if (ni.isUp() && !ni.isLoopback()) {
                     Enumeration<InetAddress> addresses = ni.getInetAddresses();
                     while (addresses.hasMoreElements()) {
                         InetAddress addr = addresses.nextElement();
-                        System.out.println("  Address: " + addr.getHostAddress() + " - IPv4: " + (addr instanceof Inet4Address));
 
-                        if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                        if (addr instanceof Inet4Address) {
                             String ip = addr.getHostAddress();
-                            System.out.println("  Checking IP: " + ip);
-
-                            // Prefer private network addresses (as per networking fundamentals)
+                            // Prefer private network IPs
                             if (ip.startsWith("192.168.") || ip.startsWith("10.") ||
-                                    ip.startsWith("172.16.") || ip.startsWith("172.17.") ||
-                                    ip.startsWith("172.18.") || ip.startsWith("172.19.") ||
-                                    ip.startsWith("172.20.") || ip.startsWith("172.21.") ||
-                                    ip.startsWith("172.22.") || ip.startsWith("172.23.") ||
-                                    ip.startsWith("172.24.") || ip.startsWith("172.25.") ||
-                                    ip.startsWith("172.26.") || ip.startsWith("172.27.") ||
-                                    ip.startsWith("172.28.") || ip.startsWith("172.29.") ||
-                                    ip.startsWith("172.30.") || ip.startsWith("172.31.")) {
-                                detectedNetworkIP = ip;
-                                serverHost = ip;
-                                System.out.println("✅ Selected private network IP: " + ip);
-                                return;
+                                    (ip.startsWith("172.") && ip.split("\\.")[1].matches("(1[6-9]|2[0-9]|3[01])"))) {
+                                System.out.println("Found private network IP: " + ip);
+                                return ip;
                             }
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error detecting network IP: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error scanning network interfaces: " + e.getMessage());
         }
 
-        // Final fallback to localhost
-        if (detectedNetworkIP == null) {
-            System.out.println("❌ No suitable network IP found, using localhost");
-            detectedNetworkIP = "localhost";
-            serverHost = "localhost";
-        }
-
-        System.out.println("Final detected IP: " + detectedNetworkIP);
+        return DEFAULT_SERVER_HOST;
     }
 
     /**
@@ -150,7 +143,7 @@ public class SecureChatClientGUI extends JFrame {
      * Initialize the GUI components
      */
     private void initializeGUI() {
-        setTitle("🔐 Secure Chat Client - Multi-PC Support");
+        setTitle("Secure Chat Client - Multi-PC Support");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(650, 550);
         setLocationRelativeTo(null);
@@ -183,14 +176,14 @@ public class SecureChatClientGUI extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
 
         // Title
-        JLabel titleLabel = new JLabel("🔐 Secure Chat Login", SwingConstants.CENTER);
+        JLabel titleLabel = new JLabel("Secure Chat Login", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         gbc.insets = new Insets(0, 0, 20, 0);
         loginPanel.add(titleLabel, gbc);
 
         // Server configuration section
-        JLabel serverConfigLabel = new JLabel("🌐 Server Configuration", SwingConstants.CENTER);
+        JLabel serverConfigLabel = new JLabel("Server Configuration", SwingConstants.CENTER);
         serverConfigLabel.setFont(new Font("Arial", Font.BOLD, 14));
         gbc.gridy = 1; gbc.insets = new Insets(0, 0, 10, 0);
         loginPanel.add(serverConfigLabel, gbc);
@@ -200,47 +193,44 @@ public class SecureChatClientGUI extends JFrame {
         gbc.gridy = 2; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST;
         loginPanel.add(new JLabel("Server Host:"), gbc);
 
-        serverHostField = new JTextField(serverHost != null ? serverHost : DEFAULT_SERVER_HOST, 20);
-        serverHostField.setToolTipText("Detected network IP: " + (detectedNetworkIP != null ? detectedNetworkIP : "Not detected"));
-        serverHostField.setPreferredSize(new Dimension(200, 25));
+        serverHostField = new JTextField(detectedIP, 25);
+        serverHostField.setPreferredSize(new Dimension(250, 25));
         gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
         loginPanel.add(serverHostField, gbc);
 
-        // Network detection button
-        JButton detectButton = new JButton("🔍 Detect");
-        detectButton.setToolTipText("Auto-detect network IP");
-        detectButton.addActionListener(e -> autoDetectNetwork());
-        gbc.gridx = 2; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.NONE;
-        loginPanel.add(detectButton, gbc);
-
         // Server port
-        gbc.gridy = 3; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST;
+        gbc.gridy = 3; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST; gbc.fill = GridBagConstraints.NONE;
         loginPanel.add(new JLabel("Server Port:"), gbc);
 
-        serverPortField = new JTextField(String.valueOf(DEFAULT_SERVER_PORT), 20);
-        serverPortField.setPreferredSize(new Dimension(200, 25));
+        serverPortField = new JTextField(String.valueOf(DEFAULT_SERVER_PORT), 25);
+        serverPortField.setPreferredSize(new Dimension(250, 25));
         gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
         loginPanel.add(serverPortField, gbc);
 
-        // Network info label
-        JLabel networkInfoLabel = new JLabel("💡 Network: " + (detectedNetworkIP != null ? detectedNetworkIP : "Not detected"));
-        networkInfoLabel.setFont(new Font("Arial", Font.PLAIN, 10));
-        networkInfoLabel.setForeground(Color.GRAY);
-        gbc.gridy = 4; gbc.gridx = 0; gbc.gridwidth = 3; gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(0, 0, 10, 0);
-        loginPanel.add(networkInfoLabel, gbc);
+        // Detect IP and Test connection buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        detectIPButton = new JButton("Detect IP");
+        detectIPButton.addActionListener(e -> {
+            detectNetworkIP();
+            serverHostField.setText(detectedIP);
+            JOptionPane.showMessageDialog(this, "Network IP detected: " + detectedIP,
+                    "IP Detection", JOptionPane.INFORMATION_MESSAGE);
+        });
 
-        // Test connection button
-        testConnectionButton = new JButton("🔍 Test Connection");
+        testConnectionButton = new JButton("Test Connection");
         testConnectionButton.addActionListener(e -> testConnection());
-        gbc.gridy = 5; gbc.gridx = 0; gbc.gridwidth = 3; gbc.anchor = GridBagConstraints.CENTER;
+
+        buttonPanel.add(detectIPButton);
+        buttonPanel.add(testConnectionButton);
+
+        gbc.gridy = 4; gbc.gridx = 0; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(10, 5, 10, 5);
-        loginPanel.add(testConnectionButton, gbc);
+        loginPanel.add(buttonPanel, gbc);
 
         // User authentication section
-        JLabel authLabel = new JLabel("🔑 User Authentication", SwingConstants.CENTER);
+        JLabel authLabel = new JLabel("User Authentication", SwingConstants.CENTER);
         authLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        gbc.gridy = 6; gbc.insets = new Insets(20, 0, 10, 0);
+        gbc.gridy = 5; gbc.insets = new Insets(20, 0, 10, 0);
         loginPanel.add(authLabel, gbc);
 
         // Test accounts info
@@ -254,40 +244,47 @@ public class SecureChatClientGUI extends JFrame {
         accountsInfo.setEditable(false);
         accountsInfo.setBackground(loginPanel.getBackground());
         accountsInfo.setFont(new Font("Monospaced", Font.PLAIN, 11));
-        gbc.gridy = 7; gbc.insets = new Insets(0, 0, 20, 0);
+        gbc.gridy = 6; gbc.insets = new Insets(0, 0, 20, 0);
         loginPanel.add(accountsInfo, gbc);
 
         // Username
         gbc.gridwidth = 1; gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.gridy = 8; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST;
+        gbc.gridy = 7; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST;
         loginPanel.add(new JLabel("Username:"), gbc);
 
-        usernameField = new JTextField(20);
-        usernameField.setPreferredSize(new Dimension(200, 25));
-        gbc.gridx = 1; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
+        usernameField = new JTextField(25);
+        usernameField.setPreferredSize(new Dimension(250, 25));
+        gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
         loginPanel.add(usernameField, gbc);
 
         // Password
-        gbc.gridy = 9; gbc.gridx = 0; gbc.gridwidth = 1; gbc.anchor = GridBagConstraints.EAST;
+        gbc.gridy = 8; gbc.gridx = 0; gbc.anchor = GridBagConstraints.EAST; gbc.fill = GridBagConstraints.NONE;
         loginPanel.add(new JLabel("Password:"), gbc);
 
-        passwordField = new JPasswordField(20);
-        passwordField.setPreferredSize(new Dimension(200, 25));
-        gbc.gridx = 1; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
+        passwordField = new JPasswordField(25);
+        passwordField.setPreferredSize(new Dimension(250, 25));
+        gbc.gridx = 1; gbc.anchor = GridBagConstraints.WEST; gbc.fill = GridBagConstraints.HORIZONTAL;
         loginPanel.add(passwordField, gbc);
 
         // Connect button
-        connectButton = new JButton("🔗 Connect to Server");
+        connectButton = new JButton("Connect to Server");
         connectButton.addActionListener(e -> connectToServer());
-        gbc.gridy = 10; gbc.gridx = 0; gbc.gridwidth = 3; gbc.anchor = GridBagConstraints.CENTER;
+        gbc.gridy = 9; gbc.gridx = 0; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(20, 5, 5, 5);
         loginPanel.add(connectButton, gbc);
 
         // Status label
         statusLabel = new JLabel("Ready to connect", SwingConstants.CENTER);
         statusLabel.setForeground(Color.BLUE);
-        gbc.gridy = 11; gbc.insets = new Insets(10, 5, 5, 5);
+        gbc.gridy = 10; gbc.insets = new Insets(10, 5, 5, 5);
         loginPanel.add(statusLabel, gbc);
+
+        // Network info label
+        JLabel networkInfo = new JLabel("Detected network IP: " + detectedIP, SwingConstants.CENTER);
+        networkInfo.setFont(new Font("Arial", Font.ITALIC, 11));
+        networkInfo.setForeground(Color.GRAY);
+        gbc.gridy = 11; gbc.insets = new Insets(5, 5, 5, 5);
+        loginPanel.add(networkInfo, gbc);
 
         // Enter key listeners
         serverHostField.addActionListener(e -> serverPortField.requestFocus());
@@ -297,46 +294,13 @@ public class SecureChatClientGUI extends JFrame {
     }
 
     /**
-     * Auto-detect network IP and update the server host field
-     */
-    private void autoDetectNetwork() {
-        new Thread(() -> {
-            SwingUtilities.invokeLater(() -> {
-                testConnectionButton.setEnabled(false);
-                statusLabel.setText("🔍 Detecting network...");
-                statusLabel.setForeground(Color.ORANGE);
-            });
-
-            detectNetworkIP();
-
-            SwingUtilities.invokeLater(() -> {
-                serverHostField.setText(detectedNetworkIP);
-                serverHostField.setToolTipText("Detected network IP: " + detectedNetworkIP);
-
-                // Update network info label
-                Component[] components = loginPanel.getComponents();
-                for (Component comp : components) {
-                    if (comp instanceof JLabel && ((JLabel) comp).getText().startsWith("💡 Network:")) {
-                        ((JLabel) comp).setText("💡 Network: " + detectedNetworkIP);
-                        break;
-                    }
-                }
-
-                statusLabel.setText("✅ Network detected: " + detectedNetworkIP);
-                statusLabel.setForeground(Color.GREEN);
-                testConnectionButton.setEnabled(true);
-            });
-        }).start();
-    }
-
-    /**
      * Test connection to server
      */
     private void testConnection() {
         updateServerSettings();
 
         testConnectionButton.setEnabled(false);
-        statusLabel.setText("🔍 Testing connection...");
+        statusLabel.setText("Testing connection...");
         statusLabel.setForeground(Color.ORANGE);
 
         new Thread(() -> {
@@ -346,13 +310,13 @@ public class SecureChatClientGUI extends JFrame {
                 testSocket.close();
 
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("✅ Connection successful!");
+                    statusLabel.setText("Connection successful!");
                     statusLabel.setForeground(Color.GREEN);
                     testConnectionButton.setEnabled(true);
                 });
             } catch (IOException e) {
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("❌ Connection failed: " + e.getMessage());
+                    statusLabel.setText("Connection failed: " + e.getMessage());
                     statusLabel.setForeground(Color.RED);
                     testConnectionButton.setEnabled(true);
 
@@ -378,7 +342,7 @@ public class SecureChatClientGUI extends JFrame {
     private void updateServerSettings() {
         serverHost = serverHostField.getText().trim();
         if (serverHost.isEmpty()) {
-            serverHost = DEFAULT_SERVER_HOST;
+            serverHost = detectedIP;
             serverHostField.setText(serverHost);
         }
 
@@ -416,7 +380,7 @@ public class SecureChatClientGUI extends JFrame {
         messageField.addActionListener(e -> sendMessage());
         inputPanel.add(messageField, BorderLayout.CENTER);
 
-        sendButton = new JButton("📤 Send");
+        sendButton = new JButton("Send");
         sendButton.addActionListener(e -> sendMessage());
         inputPanel.add(sendButton, BorderLayout.EAST);
 
@@ -424,17 +388,17 @@ public class SecureChatClientGUI extends JFrame {
 
         // Top panel with server info and controls
         JPanel topPanel = new JPanel(new BorderLayout());
-        JLabel serverInfoLabel = new JLabel("🌐 Server: ");
+        JLabel serverInfoLabel = new JLabel("Server: ");
 
         JPanel buttonPanel = new JPanel(new FlowLayout());
 
-        JButton infoButton = new JButton("ℹ️ Info");
+        JButton infoButton = new JButton("Info");
         infoButton.addActionListener(e -> showConnectionInfo());
 
-        JButton helpButton = new JButton("❓ Help");
+        JButton helpButton = new JButton("Help");
         helpButton.addActionListener(e -> showHelp());
 
-        disconnectButton = new JButton("🔌 Disconnect");
+        disconnectButton = new JButton("Disconnect");
         disconnectButton.addActionListener(e -> disconnect());
 
         buttonPanel.add(infoButton);
@@ -450,11 +414,11 @@ public class SecureChatClientGUI extends JFrame {
      * Show connection information
      */
     private void showConnectionInfo() {
-        String info = "🌐 Connection Information\n\n" +
+        String info = "Connection Information\n\n" +
                 "Server: " + serverHost + ":" + serverPort + "\n" +
                 "Username: " + username + "\n" +
                 "Encryption: AES-128\n" +
-                "Status: " + (isConnected ? "Connected ✅" : "Disconnected ❌");
+                "Status: " + (isConnected ? "Connected" : "Disconnected");
 
         if (isConnected && socket != null) {
             info += "\nLocal Address: " + socket.getLocalAddress().getHostAddress() + ":" + socket.getLocalPort();
@@ -473,14 +437,15 @@ public class SecureChatClientGUI extends JFrame {
         String pass = new String(passwordField.getPassword());
 
         if (user.isEmpty() || pass.isEmpty()) {
-            statusLabel.setText("❌ Please enter username and password");
+            statusLabel.setText("Please enter username and password");
             statusLabel.setForeground(Color.RED);
             return;
         }
 
         connectButton.setEnabled(false);
         testConnectionButton.setEnabled(false);
-        statusLabel.setText("🔗 Connecting to " + serverHost + ":" + serverPort + "...");
+        detectIPButton.setEnabled(false);
+        statusLabel.setText("Connecting to " + serverHost + ":" + serverPort + "...");
         statusLabel.setForeground(Color.ORANGE);
 
         // Connect in background thread
@@ -491,7 +456,7 @@ public class SecureChatClientGUI extends JFrame {
                 output = new PrintWriter(socket.getOutputStream(), true);
 
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("🔐 Authenticating...");
+                    statusLabel.setText("Authenticating...");
                 });
 
                 // Start server listener
@@ -499,7 +464,7 @@ public class SecureChatClientGUI extends JFrame {
                 serverListener.setDaemon(true);
                 serverListener.start();
 
-                // Wait longer for server welcome messages
+                // Wait for server welcome messages
                 Thread.sleep(1500);
 
                 // Send credentials
@@ -525,24 +490,26 @@ public class SecureChatClientGUI extends JFrame {
                         // Update server info label
                         Component[] components = ((JPanel)chatPanel.getComponent(2)).getComponents();
                         if (components[0] instanceof JLabel) {
-                            ((JLabel)components[0]).setText("🌐 Server: " + serverHost + ":" + serverPort + " | User: " + username);
+                            ((JLabel)components[0]).setText("Server: " + serverHost + ":" + serverPort + " | User: " + username);
                         }
                     });
                 } else {
                     SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("❌ Authentication failed - Check credentials");
+                        statusLabel.setText("Authentication failed - Check credentials");
                         statusLabel.setForeground(Color.RED);
                         connectButton.setEnabled(true);
                         testConnectionButton.setEnabled(true);
+                        detectIPButton.setEnabled(true);
                     });
                 }
 
             } catch (Exception e) {
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("❌ Connection failed: " + e.getMessage());
+                    statusLabel.setText("Connection failed: " + e.getMessage());
                     statusLabel.setForeground(Color.RED);
                     connectButton.setEnabled(true);
                     testConnectionButton.setEnabled(true);
+                    detectIPButton.setEnabled(true);
 
                     // Show detailed error
                     String errorMsg = "Failed to connect to " + serverHost + ":" + serverPort + "\n\n" +
@@ -593,8 +560,8 @@ public class SecureChatClientGUI extends JFrame {
             if (isConnected) {
                 SwingUtilities.invokeLater(() -> {
                     if (chatArea != null) {
-                        chatArea.append("\n❌ Lost connection to server.\n");
-                        chatArea.append("💡 Server might be down or network issues occurred.\n");
+                        chatArea.append("\nLost connection to server.\n");
+                        chatArea.append("Server might be down or network issues occurred.\n");
                         chatArea.setCaretPosition(chatArea.getDocument().getLength());
                     }
                 });
@@ -617,10 +584,10 @@ public class SecureChatClientGUI extends JFrame {
             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
             if (message.startsWith("/")) {
                 // For commands, show what you typed
-                chatArea.append("[" + timestamp + "] 📤 You: " + message + "\n");
+                chatArea.append("[" + timestamp + "] You: " + message + "\n");
             } else {
                 // For regular messages, show as sent
-                chatArea.append("[" + timestamp + "] 📤 " + username + ": " + message + "\n");
+                chatArea.append("[" + timestamp + "] " + username + ": " + message + "\n");
             }
             chatArea.setCaretPosition(chatArea.getDocument().getLength());
 
@@ -634,18 +601,18 @@ public class SecureChatClientGUI extends JFrame {
      * Show help dialog
      */
     private void showHelp() {
-        String helpText = "📋 Available Commands:\n\n" +
+        String helpText = "Available Commands:\n\n" +
                 "/list - Show online users\n" +
                 "/private <user> <message> - Send private message\n" +
                 "/info - Show connection info\n" +
                 "/quit - Exit chat\n\n" +
-                "💡 Tips:\n" +
+                "Tips:\n" +
                 "• All messages are encrypted with AES-128\n" +
                 "• Press Enter to send messages\n" +
                 "• Private messages are shown in chat area\n" +
                 "• Use /list to see who's online\n" +
                 "• Test connection before connecting\n\n" +
-                "🌐 Multi-PC Support:\n" +
+                "Multi-PC Support:\n" +
                 "• Enter server IP address in login screen\n" +
                 "• Default port is 30703\n" +
                 "• Use Test Connection to verify connectivity";
@@ -713,7 +680,8 @@ public class SecureChatClientGUI extends JFrame {
                 repaint();
                 connectButton.setEnabled(true);
                 testConnectionButton.setEnabled(true);
-                statusLabel.setText("👋 Disconnected from " + serverHost + ":" + serverPort);
+                detectIPButton.setEnabled(true);
+                statusLabel.setText("Disconnected from " + serverHost + ":" + serverPort);
                 statusLabel.setForeground(Color.BLUE);
                 usernameField.setText("");
                 passwordField.setText("");
@@ -726,7 +694,6 @@ public class SecureChatClientGUI extends JFrame {
      */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Simple main method without look and feel complications
             new SecureChatClientGUI().setVisible(true);
         });
     }
