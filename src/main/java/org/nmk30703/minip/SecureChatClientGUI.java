@@ -44,12 +44,15 @@ public class SecureChatClientGUI extends JFrame {
     private BufferedReader input;
     private PrintWriter output;
     private boolean isConnected = false;
+    private boolean isAuthenticating = false;
     private Cipher encryptCipher;
     private Cipher decryptCipher;
     private String username;
     private String serverHost = DEFAULT_SERVER_HOST;
     private int serverPort = DEFAULT_SERVER_PORT;
     private String detectedIP = DEFAULT_SERVER_HOST;
+    private String pendingUsername = "";
+    private String pendingPassword = "";
 
     public SecureChatClientGUI() {
         setupEncryption();
@@ -165,6 +168,11 @@ public class SecureChatClientGUI extends JFrame {
                 System.exit(0);
             }
         });
+
+        // Add shutdown hook for proper cleanup
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            disconnect();
+        }));
     }
 
     /**
@@ -442,6 +450,10 @@ public class SecureChatClientGUI extends JFrame {
             return;
         }
 
+        // Store credentials for authentication
+        pendingUsername = user;
+        pendingPassword = pass;
+
         connectButton.setEnabled(false);
         testConnectionButton.setEnabled(false);
         detectIPButton.setEnabled(false);
@@ -454,6 +466,7 @@ public class SecureChatClientGUI extends JFrame {
                 socket = new Socket(serverHost, serverPort);
                 input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 output = new PrintWriter(socket.getOutputStream(), true);
+                isAuthenticating = true;
 
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Authenticating...");
@@ -464,27 +477,28 @@ public class SecureChatClientGUI extends JFrame {
                 serverListener.setDaemon(true);
                 serverListener.start();
 
-                // Wait for server welcome messages
-                Thread.sleep(1500);
-
-                // Send credentials
-                System.out.println("Sending username: " + user);
-                sendEncryptedMessage(user);
-                Thread.sleep(200);
-
-                System.out.println("Sending password");
-                sendEncryptedMessage(pass);
-
-                // Wait for authentication result
-                Thread.sleep(2000);
+                // Wait for authentication to complete (handled in message listener)
+                int timeout = 0;
+                while (isAuthenticating && timeout < 60) { // 30 second timeout
+                    Thread.sleep(500);
+                    timeout++;
+                }
 
                 if (isConnected) {
-                    username = user;
+                    username = pendingUsername;
                     SwingUtilities.invokeLater(() -> {
                         remove(loginPanel);
                         add(chatPanel);
                         validate();
                         repaint();
+
+                        // Clear chat area from previous sessions
+                        if (chatArea != null) {
+                            chatArea.setText("");
+                            chatArea.append("=== Connected to " + serverHost + ":" + serverPort + " ===\n");
+                            chatArea.append("Welcome " + username + "!\n\n");
+                        }
+
                         messageField.requestFocus();
 
                         // Update server info label
@@ -492,15 +506,38 @@ public class SecureChatClientGUI extends JFrame {
                         if (components[0] instanceof JLabel) {
                             ((JLabel)components[0]).setText("Server: " + serverHost + ":" + serverPort + " | User: " + username);
                         }
+
+                        // Automatically send /list command to show online users
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(1000); // Wait a moment for connection to stabilize
+                                sendEncryptedMessage("/list");
+                                System.out.println("Automatically sent /list command");
+                            } catch (InterruptedException e) {
+                                System.err.println("Error sending auto /list command: " + e.getMessage());
+                            }
+                        }).start();
                     });
                 } else {
                     SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("Authentication failed - Check credentials");
+                        if (isAuthenticating) {
+                            statusLabel.setText("Authentication timeout");
+                        } else {
+                            statusLabel.setText("Authentication failed - Check credentials");
+                        }
                         statusLabel.setForeground(Color.RED);
                         connectButton.setEnabled(true);
                         testConnectionButton.setEnabled(true);
                         detectIPButton.setEnabled(true);
                     });
+                    // Close connection on failed authentication
+                    try {
+                        if (socket != null && !socket.isClosed()) {
+                            socket.close();
+                        }
+                    } catch (IOException ex) {
+                        System.err.println("Error closing socket: " + ex.getMessage());
+                    }
                 }
 
             } catch (Exception e) {
@@ -523,6 +560,7 @@ public class SecureChatClientGUI extends JFrame {
                     JOptionPane.showMessageDialog(SecureChatClientGUI.this, errorMsg,
                             "Connection Failed", JOptionPane.ERROR_MESSAGE);
                 });
+                isAuthenticating = false;
             }
         }).start();
     }
@@ -534,34 +572,78 @@ public class SecureChatClientGUI extends JFrame {
         try {
             String encryptedMessage;
             while ((encryptedMessage = input.readLine()) != null) {
+                if (encryptedMessage.trim().isEmpty()) {
+                    continue; // Skip empty messages
+                }
+
                 String message = decrypt(encryptedMessage);
+                if (message == null || message.isEmpty()) {
+                    continue; // Skip if decryption failed
+                }
+
                 System.out.println("Received from server: " + message);
 
-                SwingUtilities.invokeLater(() -> {
-                    if (message.contains("Authentication successful") || message.contains("Welcome")) {
+                // Handle authentication flow
+                if (isAuthenticating) {
+                    if (message.contains("Username:") || message.endsWith("Username: ")) {
+                        System.out.println("Sending username: " + pendingUsername);
+                        sendEncryptedMessage(pendingUsername);
+                        continue;
+                    } else if (message.contains("Password:") || message.endsWith("Password: ")) {
+                        System.out.println("Sending password");
+                        sendEncryptedMessage(pendingPassword);
+                        continue;
+                    } else if (message.contains("Authentication successful") ||
+                            message.contains("Welcome " + pendingUsername)) {
                         isConnected = true;
-                        System.out.println("Authentication successful detected!");
-                    } else if (message.contains("Invalid credentials") || message.contains("already logged")) {
+                        isAuthenticating = false;
+                        System.out.println("Authentication successful!");
+                        continue;
+                    } else if (message.contains("Invalid credentials") ||
+                            message.contains("already logged") ||
+                            message.contains("User already")) {
                         isConnected = false;
-                        System.out.println("Authentication failed detected!");
-                        return;
+                        isAuthenticating = false;
+                        System.out.println("Authentication failed!");
+                        continue;
+                    } else if (message.contains("Welcome to") ||
+                            message.contains("Please authenticate") ||
+                            message.contains("Commands:")) {
+                        // Skip welcome and instruction messages during authentication
+                        continue;
                     }
+                }
 
-                    // Only add to chat area if we're in chat mode (connected)
-                    if (isConnected && chatArea != null) {
-                        // Add timestamp and display message
-                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                        chatArea.append("[" + timestamp + "] " + message + "\n");
-                        chatArea.setCaretPosition(chatArea.getDocument().getLength());
-                    }
-                });
+                // Handle chat messages (only when connected and not authenticating)
+                if (isConnected && !isAuthenticating) {
+                    SwingUtilities.invokeLater(() -> {
+                        if (chatArea != null) {
+                            // Add timestamp and display message
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+
+                            // Special formatting for /list command response
+                            if (message.contains("Online users:")) {
+                                chatArea.append("[" + timestamp + "] " + message + "\n");
+                                chatArea.append("Type your message below to chat with everyone!\n\n");
+                            } else {
+                                chatArea.append("[" + timestamp + "] " + message + "\n");
+                            }
+
+                            chatArea.setCaretPosition(chatArea.getDocument().getLength());
+                        }
+                    });
+                }
             }
         } catch (IOException e) {
+            System.out.println("Connection closed: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error in message listener: " + e.getMessage());
+        } finally {
+            isAuthenticating = false;
             if (isConnected) {
                 SwingUtilities.invokeLater(() -> {
                     if (chatArea != null) {
-                        chatArea.append("\nLost connection to server.\n");
-                        chatArea.append("Server might be down or network issues occurred.\n");
+                        chatArea.append("\nConnection lost.\n");
                         chatArea.setCaretPosition(chatArea.getDocument().getLength());
                     }
                 });
@@ -624,9 +706,15 @@ public class SecureChatClientGUI extends JFrame {
      * Encrypt and send message
      */
     private void sendEncryptedMessage(String message) {
-        if (output != null && isConnected) {
-            String encryptedMessage = encrypt(message);
-            output.println(encryptedMessage);
+        if (output != null && !socket.isClosed()) {
+            try {
+                String encryptedMessage = encrypt(message);
+                output.println(encryptedMessage);
+                output.flush(); // Ensure message is sent immediately
+                System.out.println("Sent to server: " + message);
+            } catch (Exception e) {
+                System.err.println("Error sending message: " + e.getMessage());
+            }
         }
     }
 
@@ -635,9 +723,13 @@ public class SecureChatClientGUI extends JFrame {
      */
     private String encrypt(String message) {
         try {
+            if (message == null || message.isEmpty()) {
+                return "";
+            }
             byte[] encrypted = encryptCipher.doFinal(message.getBytes());
             return Base64.getEncoder().encodeToString(encrypted);
         } catch (Exception e) {
+            System.err.println("Error encrypting message: " + e.getMessage());
             return message;
         }
     }
@@ -647,11 +739,15 @@ public class SecureChatClientGUI extends JFrame {
      */
     private String decrypt(String encryptedMessage) {
         try {
+            if (encryptedMessage == null || encryptedMessage.isEmpty()) {
+                return "";
+            }
             byte[] decoded = Base64.getDecoder().decode(encryptedMessage);
             byte[] decrypted = decryptCipher.doFinal(decoded);
             return new String(decrypted);
         } catch (Exception e) {
-            return encryptedMessage;
+            System.err.println("Error decrypting message: " + e.getMessage());
+            return encryptedMessage != null ? encryptedMessage : "";
         }
     }
 
@@ -659,17 +755,37 @@ public class SecureChatClientGUI extends JFrame {
      * Disconnect from server
      */
     private void disconnect() {
+        System.out.println("Disconnecting from server...");
+
+        // Stop authentication process
+        isAuthenticating = false;
+
         if (isConnected) {
-            sendEncryptedMessage("/quit");
+            try {
+                sendEncryptedMessage("/quit");
+            } catch (Exception e) {
+                System.out.println("Error sending quit message: " + e.getMessage());
+            }
         }
 
         isConnected = false;
+
+        // Close connections
         try {
-            if (input != null) input.close();
-            if (output != null) output.close();
-            if (socket != null) socket.close();
+            if (input != null) {
+                input.close();
+                input = null;
+            }
+            if (output != null) {
+                output.close();
+                output = null;
+            }
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+                socket = null;
+            }
         } catch (IOException e) {
-            // Ignore cleanup errors
+            System.out.println("Error during cleanup: " + e.getMessage());
         }
 
         SwingUtilities.invokeLater(() -> {
@@ -678,15 +794,30 @@ public class SecureChatClientGUI extends JFrame {
                 add(loginPanel);
                 validate();
                 repaint();
-                connectButton.setEnabled(true);
-                testConnectionButton.setEnabled(true);
-                detectIPButton.setEnabled(true);
-                statusLabel.setText("Disconnected from " + serverHost + ":" + serverPort);
-                statusLabel.setForeground(Color.BLUE);
-                usernameField.setText("");
-                passwordField.setText("");
+            }
+
+            // Re-enable buttons
+            connectButton.setEnabled(true);
+            testConnectionButton.setEnabled(true);
+            detectIPButton.setEnabled(true);
+
+            // Update status
+            statusLabel.setText("Disconnected from " + serverHost + ":" + serverPort);
+            statusLabel.setForeground(Color.BLUE);
+
+            // Clear credentials and reset chat area
+            usernameField.setText("");
+            passwordField.setText("");
+            pendingUsername = "";
+            pendingPassword = "";
+
+            // Clear chat area for next session
+            if (chatArea != null) {
+                chatArea.setText("");
             }
         });
+
+        System.out.println("Disconnect completed.");
     }
 
     /**
